@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -118,7 +118,10 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
 
         user.SetConcurrencyStampIfNotNull(input.ConcurrencyStamp);
 
-        (await UserManager.SetUserNameAsync(user, input.UserName)).CheckErrors();
+        if (!string.Equals(user.UserName, input.UserName, StringComparison.InvariantCultureIgnoreCase))
+        {
+            (await UserManager.SetUserNameAsync(user, input.UserName)).CheckErrors();
+        }
 
         await UpdateUserByInput(user, input);
         input.MapExtraPropertiesTo(user);
@@ -201,7 +204,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
 
         user.Name = input.Name?.Trim();
         user.Surname = input.Surname?.Trim();
-        (await UserManager.UpdateAsync(user)).CheckErrors();
         if (input.RoleNames != null && await PermissionChecker.IsGrantedAsync(IdentityPermissions.Users.ManageRoles))
         {
             var effectiveRoles = await FilterRolesByCurrentUserAsync(user, input.RoleNames);
