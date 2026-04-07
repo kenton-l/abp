@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,6 +14,7 @@ using Volo.Abp.Users;
 
 namespace Volo.Abp.Identity;
 
+[Authorize(IdentityPermissions.Users.Default)]
 public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppService
 {
     protected IdentityUserManager UserManager { get; }
@@ -35,8 +36,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
         PermissionChecker = permissionChecker;
     }
 
-    //TODO: [Authorize(IdentityPermissions.Users.Default)] should go the IdentityUserAppService class.
-    [Authorize(IdentityPermissions.Users.Default)]
     public virtual async Task<IdentityUserDto> GetAsync(Guid id)
     {
         return ObjectMapper.Map<IdentityUser, IdentityUserDto>(
@@ -44,7 +43,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
         );
     }
 
-    [Authorize(IdentityPermissions.Users.Default)]
     public virtual async Task<PagedResultDto<IdentityUserDto>> GetListAsync(GetIdentityUsersInput input)
     {
         var count = await UserRepository.GetCountAsync(input.Filter);
@@ -56,7 +54,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
         );
     }
 
-    [Authorize(IdentityPermissions.Users.Default)]
     public virtual async Task<ListResultDto<IdentityRoleDto>> GetRolesAsync(Guid id)
     {
         //TODO: Should also include roles of the related OUs.
@@ -68,7 +65,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
         );
     }
 
-    [Authorize(IdentityPermissions.Users.Default)]
     public virtual async Task<ListResultDto<IdentityRoleDto>> GetAssignableRolesAsync()
     {
         List<IdentityRole> list;
@@ -118,7 +114,10 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
 
         user.SetConcurrencyStampIfNotNull(input.ConcurrencyStamp);
 
-        (await UserManager.SetUserNameAsync(user, input.UserName)).CheckErrors();
+        if (!string.Equals(user.UserName, input.UserName, StringComparison.InvariantCultureIgnoreCase))
+        {
+            (await UserManager.SetUserNameAsync(user, input.UserName)).CheckErrors();
+        }
 
         await UpdateUserByInput(user, input);
         input.MapExtraPropertiesTo(user);
@@ -164,7 +163,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
         await UserRepository.UpdateAsync(user);
     }
 
-    [Authorize(IdentityPermissions.Users.Default)]
     public virtual async Task<IdentityUserDto> FindByUsernameAsync(string userName)
     {
         return ObjectMapper.Map<IdentityUser, IdentityUserDto>(
@@ -172,7 +170,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
         );
     }
 
-    [Authorize(IdentityPermissions.Users.Default)]
     public virtual async Task<IdentityUserDto> FindByEmailAsync(string email)
     {
         return ObjectMapper.Map<IdentityUser, IdentityUserDto>(
@@ -192,7 +189,10 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
             (await UserManager.SetPhoneNumberAsync(user, input.PhoneNumber)).CheckErrors();
         }
 
-        (await UserManager.SetLockoutEnabledAsync(user, input.LockoutEnabled)).CheckErrors();
+        if (user.LockoutEnabled != input.LockoutEnabled)
+        {
+            (await UserManager.SetLockoutEnabledAsync(user, input.LockoutEnabled)).CheckErrors();
+        }
 
         if (user.Id != CurrentUser.Id)
         {
@@ -201,7 +201,6 @@ public class IdentityUserAppService : IdentityAppServiceBase, IIdentityUserAppSe
 
         user.Name = input.Name?.Trim();
         user.Surname = input.Surname?.Trim();
-        (await UserManager.UpdateAsync(user)).CheckErrors();
         if (input.RoleNames != null && await PermissionChecker.IsGrantedAsync(IdentityPermissions.Users.ManageRoles))
         {
             var effectiveRoles = await FilterRolesByCurrentUserAsync(user, input.RoleNames);
